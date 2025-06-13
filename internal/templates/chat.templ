@@ -1,0 +1,176 @@
+package templates
+
+import (
+    "t3sesame/internal/models"
+    "strconv"
+)
+
+templ MainLayout(username string, trees []models.MessageTree) {
+    @Layout("T3Sesame Chat") {
+        <div class="flex h-screen bg-gray-100">
+            <!-- Sidebar -->
+            <div class="w-80 bg-white shadow-lg flex flex-col">
+                <!-- Header -->
+                <div class="p-4 border-b border-gray-200">
+                    <div class="flex items-center justify-between mb-4">
+                        <h1 class="text-xl font-bold">T3Sesame</h1>
+                        <form hx-post="/logout" hx-target="body" hx-swap="outerHTML">
+                            <button type="submit" class="text-sm text-gray-500 hover:text-gray-700">
+                                Logout
+                            </button>
+                        </form>
+                    </div>
+                    <div class="text-sm text-gray-600 mb-4">Welcome, {username}!</div>
+                    
+                    <!-- New Chat Button -->
+                    <button 
+                        hx-post="/chat" 
+                        hx-target="#chat-content"
+                        hx-swap="innerHTML"
+                        class="w-full bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                        + New Chat
+                    </button>
+                </div>
+                
+                <!-- Chat List -->
+                <div class="flex-1 overflow-y-auto">
+                    @MessageTreeList(trees)
+                </div>
+            </div>
+            
+            <!-- Main Content -->
+            <div class="flex-1 flex flex-col">
+                <div id="chat-content" class="flex-1">
+                    @WelcomeMessage()
+                </div>
+            </div>
+        </div>
+    }
+}
+
+templ MessageTreeList(trees []models.MessageTree) {
+    <div class="p-2">
+        if len(trees) == 0 {
+            <div class="text-center text-gray-500 py-8">
+                <p>No conversations yet.</p>
+                <p class="text-sm">Click "New Chat" to start!</p>
+            </div>
+        } else {
+            for _, tree := range trees {
+                <div 
+                    class="p-3 mb-2 rounded-lg cursor-pointer hover:bg-gray-50 border border-transparent hover:border-gray-200"
+                    hx-get={"/chat/" + strconv.Itoa(tree.ID)}
+                    hx-target="#chat-content"
+                    hx-swap="innerHTML"
+                >
+                    <div class="font-medium text-sm truncate">{tree.Title}</div>
+                    <div class="text-xs text-gray-500 mt-1">
+                        {tree.UpdatedAt.Format("Jan 2, 3:04 PM")}
+                    </div>
+                </div>
+            }
+        }
+    </div>
+}
+
+templ WelcomeMessage() {
+    <div class="flex items-center justify-center h-full bg-gray-50">
+        <div class="text-center">
+            <div class="text-6xl mb-4">🤖</div>
+            <h2 class="text-2xl font-bold text-gray-800 mb-2">Welcome to T3Sesame</h2>
+            <p class="text-gray-600 mb-6">Start a new conversation to begin chatting with AI</p>
+            <button 
+                hx-post="/chat" 
+                hx-target="#chat-content"
+                hx-swap="innerHTML"
+                class="bg-blue-500 text-white py-3 px-6 rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+                Start New Chat
+            </button>
+        </div>
+    </div>
+}
+
+templ MessageDisplay(tree models.MessageTree, messages []models.Message) {
+    <div class="flex flex-col h-full">
+        <!-- Chat Header -->
+        <div class="bg-white border-b border-gray-200 p-4">
+            <h2 class="text-lg font-semibold">{tree.Title}</h2>
+            <p class="text-sm text-gray-500">
+                Created {tree.CreatedAt.Format("January 2, 2006 at 3:04 PM")}
+            </p>
+        </div>
+        
+        <!-- Messages -->
+        <div class="flex-1 overflow-y-auto p-4 space-y-4" id="messages-container">
+            if len(messages) == 0 {
+                <div class="text-center text-gray-500 py-8">
+                    <div class="text-4xl mb-4">💬</div>
+                    <p>This conversation is empty.</p>
+                    <p class="text-sm">Send a message to get started!</p>
+                </div>
+            } else {
+                for _, msg := range messages {
+                    @MessageBubble(msg)
+                }
+            }
+        </div>
+        
+        <!-- Message Input -->
+        <div class="bg-white border-t border-gray-200 p-4">
+            <form 
+                hx-post={"/chat/" + strconv.Itoa(tree.ID) + "/message"}
+                hx-target="#messages-container"
+                hx-swap="beforeend"
+                hx-on::after-request="this.reset()"
+                class="flex space-x-2"
+            >
+                <input 
+                    type="text" 
+                    name="content" 
+                    placeholder="Type your message..." 
+                    required
+                    class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <button 
+                    type="submit"
+                    class="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                    Send
+                </button>
+            </form>
+        </div>
+    </div>
+}
+
+templ MessageBubble(msg models.Message) {
+    <div class={
+        "flex " + 
+        templ.KV("justify-end", !msg.IsIncoming) + 
+        templ.KV("justify-start", msg.IsIncoming)
+    }>
+        <div class={
+            "max-w-xs lg:max-w-md px-4 py-2 rounded-lg " +
+            templ.KV("bg-blue-500 text-white", !msg.IsIncoming) +
+            templ.KV("bg-gray-200 text-gray-800", msg.IsIncoming)
+        }>
+            <p class="text-sm">{msg.Content}</p>
+            <p class={
+                "text-xs mt-1 " +
+                templ.KV("text-blue-100", !msg.IsIncoming) +
+                templ.KV("text-gray-500", msg.IsIncoming)
+            }>
+                {msg.CreatedAt.Format("3:04 PM")}
+            </p>
+        </div>
+    </div>
+}
+
+templ NewChatCreated(tree models.MessageTree) {
+    @MessageDisplay(tree, []models.Message{})
+    <script>
+        // Refresh the sidebar to show the new chat
+        htmx.trigger(document.body, 'refreshSidebar');
+    </script>
+}
